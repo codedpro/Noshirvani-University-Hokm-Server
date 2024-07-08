@@ -22,17 +22,15 @@ public class ClientHandler extends Thread {
 
     public void run() {
         try {
-            LOGGER.info("Initializing streams");
             out = new ObjectOutputStream(socket.getOutputStream());
             in = new ObjectInputStream(socket.getInputStream());
 
             String request;
             while ((request = (String) in.readObject()) != null) {
-                LOGGER.info("Received request: " + request);
                 handleRequest(request);
             }
-        } catch (IOException | ClassNotFoundException e) {
-            LOGGER.log(Level.SEVERE, "Error in client handler", e);
+        } catch (IOException | ClassNotFoundException ignored) {
+
         } finally {
             closeResources();
         }
@@ -43,7 +41,8 @@ public class ClientHandler extends Thread {
             String[] parts = request.split(":");
             String creator = parts[1];
             int maxPlayers = Integer.parseInt(parts[2]);
-            Room room = server.createRoom(creator, maxPlayers);
+            int rounds = Integer.parseInt(parts[3]);
+            Room room = server.createRoom(creator, maxPlayers, rounds);
             if (room != null) {
                 room.addClientStream(out);
                 out.writeObject("ROOM_CREATED:" + room.getCreator());
@@ -65,8 +64,18 @@ public class ClientHandler extends Thread {
                 out.writeObject("ROOM_FULL");
                 out.flush();
             }
+        } else if (request.startsWith("GAME_STARTED")) {
+            String[] parts = request.split(":");
+            String roomCreator = parts[1];
+            String username = parts[2];
+            Room room = server.getRoomByCreator(roomCreator);
+            if (room.getCreator().equals(username) && !room.isGameStarted()) {
+                room.startGame();
+                LOGGER.info("Game started by " + username);
+            } else {
+                LOGGER.warning("Start game command issued by non-creator or game already started.");
+            }
         } else if (request.equals("GET_ROOMS")) {
-            LOGGER.info("Sending room list to client");
             List<Room> rooms = server.getRooms();
             out.writeObject(rooms);
             out.flush();
@@ -113,6 +122,62 @@ public class ClientHandler extends Thread {
                 room.broadcastMessage(username + " has left the room.");
                 room.broadcastUserList();
             }
+        } else if (request.startsWith("START_GAME")) {
+            String[] parts = request.split(":");
+            String roomCreator = parts[1];
+            String username = parts[2];
+            List<String> teamA = List.of(parts[3].split(","));
+            List<String> teamB = List.of(parts[4].split(","));
+            startGame(roomCreator, teamA, teamB);
+        } else if (request.startsWith("PLAYER_LIST")) {
+            String roomCreator = request.split(":")[1];
+            Room room = server.getRoomByCreator(roomCreator);
+            if (room != null) {
+                // Get players in Team A and Team B
+                List<String> teamAPlayers = room.getTeamA();
+                List<String> teamBPlayers = room.getTeamB();
+
+                // Prepare the message to send to clients
+                StringBuilder messageBuilder = new StringBuilder("PLAYER_LIST:");
+
+                // Append Team A players
+                messageBuilder.append("Team A: ");
+                messageBuilder.append(String.join(",", teamAPlayers));
+
+                // Append Team B players
+                messageBuilder.append(": Team B: ");
+                messageBuilder.append(String.join(",", teamBPlayers));
+
+                String message = messageBuilder.toString();
+
+                // Broadcast PLAYER_LIST message to all clients
+                for (ObjectOutputStream client : room.getClientStreams()) {
+                    try {
+                        client.writeObject(message);
+                        client.flush();
+                    } catch (IOException e) {
+                        LOGGER.log(Level.SEVERE, "Error broadcasting PLAYER_LIST message", e);
+                    }
+                }
+
+                LOGGER.info("Sent PLAYER_LIST to all clients for room: " + roomCreator);
+            }
+
+
+    }
+    }
+
+    private void startGame(String roomCreator, List<String> teamA, List<String> teamB) {
+        Room room = server.getRoomByCreator(roomCreator);
+        if (room != null) {
+            for (ObjectOutputStream client : room.getClientStreams()) {
+                try {
+                    client.writeObject("START_GAME:" + String.join(",", teamA) + ":" + String.join(",", teamB));
+                    client.flush();
+                } catch (IOException e) {
+                    LOGGER.log(Level.SEVERE, "Error starting game", e);
+                }
+            }
         }
     }
 
@@ -127,7 +192,6 @@ public class ClientHandler extends Thread {
             if (socket != null && !socket.isClosed()) {
                 socket.close();
             }
-            LOGGER.info("Streams and socket closed");
         } catch (IOException e) {
             LOGGER.log(Level.SEVERE, "Error closing resources", e);
         }

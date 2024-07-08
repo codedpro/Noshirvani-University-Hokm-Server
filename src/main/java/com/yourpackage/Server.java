@@ -34,7 +34,8 @@ public class Server {
         }
     }
 
-    public synchronized Room createRoom(String creator, int maxPlayers) {
+    public synchronized Room createRoom(String creator, int maxPlayers, int rounds) {
+        LOGGER.log(Level.INFO, "round numbers: " + rounds);
         for (int i = 0; i < rooms.size(); i++) {
             if (rooms.get(i).getCreator() == null) {
                 Room room = new Room(creator, maxPlayers);
