@@ -83,7 +83,7 @@ public class ClientHandler extends Thread {
         } else if (request.startsWith("SET_HOKM")) {
             String[] parts = request.split(":");
             String roomCreator = parts[1];
-            hokemSuit = parts[2]; // Set hokemSuit here
+            hokemSuit = parts[2];
             Room room = server.getRoomByCreator(roomCreator);
             if (room != null) {
                 room.setHokmSuit(hokemSuit);
