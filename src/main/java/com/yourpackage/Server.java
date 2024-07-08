@@ -15,8 +15,9 @@ public class Server {
 
     public Server() {
         rooms = new ArrayList<>();
-        for (int i = 0; i < 3; i++) {
-            rooms.add(new Room(null, 4));
+        // Initialize with some empty room slots
+        for (int i = 0; i < 10; i++) {
+            rooms.add(new Room(null, 4, 7));  // Assuming a default of 4 players per room
         }
     }
 
@@ -38,18 +39,22 @@ public class Server {
         LOGGER.log(Level.INFO, "round numbers: " + rounds);
         for (int i = 0; i < rooms.size(); i++) {
             if (rooms.get(i).getCreator() == null) {
-                Room room = new Room(creator, maxPlayers);
+                Room room = new Room(creator, maxPlayers, rounds);
                 rooms.set(i, room);
+                notifyAll();  // Notify any waiting threads that the room list has been updated
                 return room;
             }
         }
-        return null;
+        Room newRoom = new Room(creator, maxPlayers, rounds);
+        rooms.add(newRoom);  // Add new room to the list
+        notifyAll();  // Notify any waiting threads that the room list has been updated
+        return newRoom;
     }
 
     public synchronized void removeRoom(Room room) {
         int index = rooms.indexOf(room);
         if (index != -1) {
-            rooms.set(index, new Room(null, 4));
+            rooms.set(index, new Room(null, 4, 7));
         }
     }
 
