@@ -42,4 +42,14 @@ public class Player implements Serializable {
             e.printStackTrace();
         }
     }
+
+    public void sendMessage(String message) {
+        try {
+            outputStream.writeObject(message);
+            outputStream.flush();
+        } catch (IOException e) {
+            System.err.println("Error sending message to player " + name);
+            e.printStackTrace();
+        }
+    }
 }
