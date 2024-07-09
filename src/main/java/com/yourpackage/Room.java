@@ -13,7 +13,7 @@ public class Room implements Serializable {
 
     private final String creator;
     private final List<Player> players;
-    private final Set<String> broadcastedMessages = new HashSet<>();
+
     private transient List<ObjectOutputStream> clientStreams;
     private final int maxPlayers;
     private boolean isGameStarted;
@@ -185,10 +185,15 @@ public class Room implements Serializable {
     }
 
     private void nextTurn() {
+        LOGGER.info("we are in next Turn");
         currentPlayerIndex %= players.size();
         Player currentPlayer = players.get(currentPlayerIndex);
+        LOGGER.info(currentPlayer.getName());
+
+
         broadcastMessage("PLAYER_TURN:" + currentPlayer.getName());
     }
+
 
     public synchronized void playCard(Player player, Card card) {
         if (players.get(currentPlayerIndex).equals(player)) {
@@ -235,8 +240,16 @@ public class Room implements Serializable {
                 broadcastMessage("TEAM_WINS_ROUND:" + winningTeam);
                 resetForNextRound(winningTeamIndex);
             } else {
+
                 master = winner;
                 currentPlayerIndex = players.indexOf(master);
+                try {
+
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    LOGGER.info("Thread was interrupted" + e);
+                    Thread.currentThread().interrupt();
+                }
                 nextTurn();
             }
         }
@@ -277,13 +290,6 @@ public class Room implements Serializable {
     }
 
     public synchronized void broadcastMessage(String message) {
-        if (broadcastedMessages.contains(message)) {
-            LOGGER.log(Level.INFO, "Duplicate message detected, skipping broadcast: " + message);
-            return;
-        }
-
-        broadcastedMessages.add(message);
-
         List<ObjectOutputStream> failedStreams = new ArrayList<>();
 
         for (ObjectOutputStream client : clientStreams) {
